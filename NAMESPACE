@@ -1,0 +1,19 @@
+importClassesFrom(affy, AffyBatch)
+
+importClassesFrom(lumi, LumiBatch)
+importMethodsFrom(lumi, detection, plot)
+
+importMethodsFrom(Biobase, exprs)
+
+importMethodsFrom(BiocGenerics, colnames, intersect, ncol, nrow, order,
+                  paste, rownames)
+
+importMethodsFrom(lumi, detection, plot)
+
+importMethodsFrom(methylumi, summary)
+
+importFrom(sfsmisc, D1D2)
+
+export(CATplot)
+
+exportMethods(sampleQC, sortedIqrPlot)

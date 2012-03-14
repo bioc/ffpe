@@ -1,0 +1,280 @@
+
+\documentclass{article}
+
+\usepackage{natbib}
+\usepackage{graphics}
+
+% \VignetteIndexEntry{ffpe package user guide}
+
+\begin{document}
+
+<<foo,echo=FALSE>>=
+options(keep.source = TRUE)
+options(width = 60)
+options(eps = FALSE)
+foo <- packageDescription("ffpe")
+@
+
+
+\title{FFPE Package Example (Version \Sexpr{foo$Version})}
+\author{Levi Waldron}
+\maketitle
+
+\section{Introduction}
+
+
+Gene expression data derived for formalin-fixed, paraffin-embedded
+(FFPE) tissues tend to be noisier and more susceptible to experimental
+artefacts than data derived from fresh-frozen tissues.  Microarray
+studies of FFPE tissues may also be of a larger scale than of
+fresh-frozen tissues.  Both of these factors contribute to the need
+for new quality control and visualization techniques.  This is an
+example of using the \verb@ffpe@ Bioconductor package for quality
+control of gene expression data derived from formalin-fixed,
+paraffin-embedded (FFPE) tissues.
+
+Example data (of better quality than is typical for clinical FFPE
+specimens) are taken from the early study of the Illumina WG-DASL
+microarray assay for FFPE specimens by April et al.
+\cite{april_whole-genome_2009}, using only the dilution series from
+Burkitts Lymphoma and Breast Adenocarcinoma cell lines.  The dilution
+series provide a range of sample qualities from very high at most
+dilution levels, to low at the lowest dilution levels.
+
+\section{Initial inspection of raw data}
+
+The boxplot of raw log2 expression intensities is a useful first look
+at data quality.  Samples can be ordered by extraction sequence, batch
+number, or Interquartile Range (IQR).  When dealing with hundreds of
+samples, however, a boxplot can become difficult to view.  The
+\emph{sortedIqrPlot} function provides a convenient means to view only
+the 25th to 75th percentile of expression intensities, which is
+extensible to more than a thousand samples, and to sort samples by a
+specified quality metric.  By default, samples are sorted from
+smallest to largest IQR, but batch ID or any string can be provided
+for ordering of the samples.  In the case of duplicate IDs, for
+example with batches, samples are further sorted by IQR within each
+batch.  An example of this simplified, sorted boxplot is shown for the
+April et al. dilution series in Figure~\ref{fig:fig1}.  
+
+@ 
+<<prelim,echo=FALSE>>=
+options(device="pdf")
+@ %def 
+
+\begin{figure}[htbp]
+\begin{center}
+@ 
+<<label=sortediqrplot,fig=TRUE,echo=TRUE,include=TRUE,eval=TRUE>>=
+library(ffpe)
+library(ffpeExampleData)
+data(lumibatch.GSE17565)
+sortedIqrPlot(lumibatch.GSE17565,dolog2=TRUE)
+@ %def 
+\end{center}
+\caption{ Simplified, sorted boxplot of the April et al. dilution
+  series.  Vertical lines indicate $25^{th}$ to $75^{th}$ percentile
+  of raw $log_2$ intensities for each sample; ie, the box portion of a
+  boxplot.  Samples are sorted from smallest to largest Interquartile
+  Range (IQR). }
+\label{fig:fig1}
+\end{figure}
+
+\section{Sample Quality Control}
+
+Expression profiles with a low intrinsic measure of quality in
+addition to low similarity to other samples from the study tend to be
+less reliable and less reproducible.  The \emph{sortedIqrPlot}
+function is a flexible interface for identification low-quality
+samples with these attributes.  The default intrinsic quality measure
+is IQR, and the default comparative measure is Spearman correlation to
+a median pseudochip (constructed from the median value of each probe).
+The default values are a reasonable choice, but other other measures
+can also be used for both intrinsic and comparative quality measures -
+see the help page for sampleQC for other options.
+
+\begin{figure}[bp]
+\begin{center}
+@ 
+<<label=sampleqc,fig=TRUE,echo=TRUE,include=TRUE,eval=TRUE>>=
+QC <- sampleQC(lumibatch.GSE17565,xaxis="index",cor.to="pseudochip",QCmeasure="IQR")
+@ %def 
+\end{center}
+\caption{ Sample Quality Control plot. In this example the plot is
+  more readable if we use the rank of each sample on the x-axis
+  (xaxis=''index''). We use default IQR as the intrinsic quality
+  measure, and the median pseudochip for the entire study as the
+  comparative measure. }
+\label{fig:fig2}
+\end{figure}
+
+We can see that the samples rejected by this procedure (Figure
+\ref{fig:fig2}) are those at the low concentration of end of the
+dilution series (Figure \ref{fig:fig3}), and in fact, the same samples
+would be rejected if RNA concentration were chosen as the intrinsic
+quality control metric (Figure \ref{fig:fig4}).
+
+\begin{figure}[bp]
+\begin{center}
+@ 
+<<label=dotchart,fig=TRUE,echo=TRUE,include=TRUE,eval=TRUE>>=
+QCvsRNA <- data.frame(inputRNA.ng=lumibatch.GSE17565$inputRNA.ng,
+                      rejectQC=QC$rejectQC)
+QCvsRNA <- QCvsRNA[order(QCvsRNA$rejectQC,-QCvsRNA$inputRNA.ng),]
+par(mgp=c(4,2,0))
+dotchart(log10(QCvsRNA$inputRNA.ng),
+         QCvsRNA$rejectQC,
+         xlab="log10(RNA conc. in ng)", 
+         ylab="rejected?",
+         col=ifelse(QCvsRNA$rejectQC,"red","black"))
+@ 
+\end{center}
+\caption{ RNA concentration of samples whose expression profiles were
+  rejected and not rejected by the above QC test.  }
+\label{fig:fig3}
+\end{figure}
+
+\begin{figure}[bp]
+\begin{center}
+@ 
+<<label=sampleqc2,fig=TRUE,echo=TRUE,include=TRUE,eval=TRUE>>=
+QC <- sampleQC(lumibatch.GSE17565,xaxis="index",cor.to="pseudochip",QCmeasure=log10(lumibatch.GSE17565$inputRNA.ng),labelnote="log10(RNA concentration)")
+@ 
+\end{center}
+\caption{ In this example, RNA concentration could have been used as an alternative intrinsic QC metrix.  }
+\label{fig:fig4}
+\end{figure}
+
+\pagebreak
+
+\section{Feature quality control}
+
+Features with high variance are likely to contain a higher proportion
+of signal to noise than features with low variance.  This is the case
+with gene expression data from fresh-frozen tissues as well, but the
+fixation, storage, and gene expression assaying for FFPE tissues add
+more steps which may cause detection of a transcript to fail.  Since
+technical replicates are available in this dataset, we can look at
+reproducibility of probe measurements between replicate measurements
+as a function of variance.  First, we will use only samples which
+passed QC in the previous step:
+
+@ 
+<<keepQC,echo=TRUE>>=
+lumibatch.QC <- lumibatch.GSE17565[,!QC$rejectQC]
+@ %def 
+
+Now do normalization for each set of replicates independently:
+
+@ 
+<<process_rep,echo=TRUE>>=
+##replicate 1
+lumibatch.rep1 <- lumibatch.QC[,lumibatch.QC$replicate==1]
+lumbiatch.rep1 <- lumiT(lumibatch.rep1,"log2")
+lumbiatch.rep1 <- lumiN(lumibatch.rep1,"quantile")
+##replicate 2
+lumibatch.rep2 <- lumibatch.QC[,lumibatch.QC$replicate==2]
+lumibatch.rep2 <- lumiT(lumibatch.rep2,"log2")
+lumibatch.rep2 <- lumiN(lumibatch.rep2,"quantile")
+@ %def 
+
+Keep samples which passed QC for both replicate sets:
+
+@ 
+<<keepsamples,echo=TRUE>>=
+available.samples <- intersect(lumibatch.rep1$source,lumibatch.rep2$source)
+lumibatch.rep1 <- lumibatch.rep1[,na.omit(match(available.samples,lumibatch.rep1$source))]
+lumibatch.rep2 <- lumibatch.rep2[,na.omit(match(available.samples,lumibatch.rep2$source))]
+all.equal(lumibatch.rep1$source,lumibatch.rep2$source)
+@ %def 
+
+And finally, plot correlation of replicates as a function of probe
+variance in replicate 1.  Note that reproducibility increases with
+probe variance; in the absence of technical replication.
+
+@ 
+<<repcor,echo=TRUE,fig=TRUE,include=TRUE>>=
+probe.var <- apply(exprs(lumibatch.rep1),1,var)
+
+rowCors = function(x, y) {  ##rowCors function borrowed from the arrayMagic Bioconductor package
+  sqr = function(x) x*x
+  if(!is.matrix(x)||!is.matrix(y)||any(dim(x)!=dim(y)))
+    stop("Please supply two matrices of equal size.")
+  x   = sweep(x, 1, rowMeans(x))
+  y   = sweep(y, 1, rowMeans(y))
+  cor = rowSums(x*y) /  sqrt(rowSums(sqr(x))*rowSums(sqr(y)))
+}
+probe.cor <- rowCors(exprs(lumibatch.rep1),exprs(lumibatch.rep2))
+
+##the plot will be easier to see if we bin variance into deciles:
+quants <- seq(from=0,to=1,by=0.1)
+probe.var.cut <- cut(probe.var,breaks=quantile(probe.var,quants),include.lowest=TRUE,labels=FALSE)
+boxplot(probe.cor~probe.var.cut,
+        xlab="decile",
+        ylab="Pearson correlation between technical replicate probes")
+@ %def 
+
+A default filter which removes probes with less than the median
+variance is recommendable.  Keeping only probes with variance greater
+than the median is simple:
+
+@ 
+<<medianvar,echo=TRUE>>=
+lumibatch.rep1 <- lumibatch.rep1[probe.var > median(probe.var),]
+lumibatch.rep2 <- lumibatch.rep2[probe.var > median(probe.var),]
+@ %def 
+
+\section{Concordance at the Top}
+
+A common interim objective of gene expression studies is simply to
+identify differentially expressed genes with respect to a treatment or
+phenotype of interest, and to follow up on hypotheses generated from
+the top differentially expressed genes.  Furthermore, Gene Set
+Enrichment Analysis depends on the ranking of a list of genes to
+identify gene sets enriched at the top (or bottom) of the list.  The
+Concordance at the Top plot
+(CAT-plot)\cite{irizarry_multiple-laboratory_2005} measures the
+reproducibility of differentially expressed gene lists by the
+concordance of genes in the top n genes of each list (concordance =
+number of common genes divided by the number of genes in each list).
+
+In this example we produce a CAT-plot for differentially expression
+with respect to cell type in the GSE17565 dataset, representing
+concordance between the replicate measurements.  We calculate nominal
+p-values for differential expression between Burkitts Lymphoma samples
+and Breast Adenocarcinoma samples, using the fast rowttests function
+from the genefilter package:
+
+@ 
+<<ttest,echo=TRUE>>=
+library(genefilter)
+ttests.rep1 <- rowttests(exprs(lumibatch.rep1),fac=factor(lumibatch.rep1$cell.type))
+ttests.rep2 <- rowttests(exprs(lumibatch.rep2),fac=factor(lumibatch.rep2$cell.type))
+pvals.rep1 <- ttests.rep1$p.value;names(pvals.rep1) <- rownames(ttests.rep1)
+pvals.rep2 <- ttests.rep2$p.value;names(pvals.rep2) <- rownames(ttests.rep2)
+@ %def 
+
+The CATplot can be made using the CATplot function:
+
+@ 
+<<catplot,echo=TRUE,fig=TRUE,include=TRUE>>=
+x <- CATplot(pvals.rep1,pvals.rep2,maxrank=1000,xlab="Size of top-ranked gene lists",ylab="Concordance")
+legend("topleft",lty=1:2,legend=c("Actual concordance","Concordance expected by chance"), bty="n")
+@ %def 
+%% \caption{ Concordance at the top (CAT-plot) of differentially
+%%   expressed genes with respect to the two tissue types Burkitts
+%%   Lymphoma samples and Breast Adenocarcinoma in the GSE17565 dilution
+%%   series, for ranked lists produced independently from replicate
+%%   measurements. }
+
+\noindent\textbf{Note:} An extension to the CAT-plot, termed the CAT-boxplot, can be used in
+the absence of technical replicates (Waldron et al, under review).
+The samples are randomly split into two equal parts, each used to rank
+differentially expressed genes, and the splitting is repeated to
+generate a distribution of concordances.  This function can facilitate generating these distributions by setting $make.plot=FALSE$.
+
+
+\bibliographystyle{plain}
+\bibliography{ffpe}
+
+\end{document}
