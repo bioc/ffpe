@@ -2,7 +2,7 @@ Package: ffpe
 Type: Package
 Title: Quality assessment and control for FFPE microarray expression
         data
-Version: 1.0.0
+Version: 1.1.0
 Author: Levi Waldron
 Maintainer: Levi Waldron <lwaldron@hsph.harvard.edu>
 Description: Identify low-quality data using metrics developed for expression data derived from Formalin-Fixed, Paraffin-Embedded (FFPE) data.  Also a function for making Concordance at the Top plots (CAT-plots).
