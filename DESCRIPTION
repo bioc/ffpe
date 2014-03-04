@@ -2,15 +2,18 @@ Package: ffpe
 Type: Package
 Title: Quality assessment and control for FFPE microarray expression
         data
-Version: 1.7.1
+Version: 1.7.2
 Author: Levi Waldron
 Maintainer: Levi Waldron <lwaldron@hsph.harvard.edu>
-Description: Identify low-quality data using metrics developed for expression data derived from Formalin-Fixed, Paraffin-Embedded (FFPE) data.  Also a function for making Concordance at the Top plots (CAT-plots).
+Description: Identify low-quality data using metrics developed for
+        expression data derived from Formalin-Fixed, Paraffin-Embedded
+        (FFPE) data.  Also a function for making Concordance at the Top
+        plots (CAT-plots).
 Collate: sampleQC.R sortedIqrPlot.R CATplot.R
 Depends: R (>= 2.10.0), TTR, methods
 Imports: Biobase, BiocGenerics, affy, lumi, methylumi, sfsmisc
 Suggests: genefilter, affy, ffpeExampleData
-biocViews: Microarray, GeneExpression, QualityControl, Bioinformatics
 License: GPL (>2)
 LazyLoad: yes
 Packaged: 2012-03-11 19:26:31 UTC; vobencha
+biocViews: Microarray, GeneExpression, QualityControl
