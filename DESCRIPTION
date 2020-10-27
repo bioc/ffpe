@@ -2,7 +2,7 @@ Package: ffpe
 Type: Package
 Title: Quality assessment and control for FFPE microarray expression
         data
-Version: 1.33.0
+Version: 1.34.0
 Author: Levi Waldron
 Maintainer: Levi Waldron <lwaldron.research@gmail.com>
 Description: Identify low-quality data using metrics developed for
